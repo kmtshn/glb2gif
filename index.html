@@ -132,13 +132,26 @@ color:#fff;font-size:13px;font-weight:800}.note{font-size:11px;color:var(--muted
 </div>
 </div>
 
+<script>
+window.addEventListener('error', (e) => {
+  const s = document.getElementById('status');
+  const st = document.getElementById('state');
+  if (s) { s.textContent = '起動エラー: ' + (e.message || 'JavaScriptの読み込みに失敗しました。'); s.className = 'error'; }
+  if (st) st.textContent = 'Startup error';
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const s = document.getElementById('status');
+  const st = document.getElementById('state');
+  if (s) { s.textContent = '処理エラー: ' + (e.reason?.message || e.reason || '不明なエラー'); s.className = 'error'; }
+  if (st) st.textContent = 'Error';
+});
+</script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { GIFEncoder, quantize, applyPalette } from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm';
 
 const $=id=>document.getElementById(id);
 const ui={file:$('file'),drop:$('drop'),clip:$('clip'),w:$('w'),h:$('h'),fps:$('fps'),bg:$('bg'),
@@ -150,6 +163,8 @@ let scene,camera,renderer,controls,clock,root=null,mixer=null,clips=[],action=nu
 let modelCenter=new THREE.Vector3(),modelSize=new THREE.Vector3(1,1,1);
 
 init();
+setStatus('準備完了。GLBを選択してください。',0,'ok');
+ui.state.textContent='Ready';
 requestAnimationFrame(tick);
 
 function init(){
@@ -225,9 +240,10 @@ async function loadFile(file){
  if(!file||!file.name.toLowerCase().endsWith('.glb')){setStatus('GLBファイルを選択してください。',0,'error');return}
  resetDownload();disposeRoot();disable(true);currentFile=file.name;ui.name.textContent=file.name;ui.state.textContent='Loading…';
  setStatus('GLBを読み込み中…',8);
- const url=URL.createObjectURL(file);
  try{
-  const gltf=await loader().loadAsync(url);
+  const buffer=await file.arrayBuffer();
+  setStatus('GLBを解析中…',18);
+  const gltf=await loader().parseAsync(buffer,'');
   root=gltf.scene;scene.add(root);clips=gltf.animations||[];
   updateBounds();fitCamera();mixer=clips.length?new THREE.AnimationMixer(root):null;
   ui.clip.innerHTML='';
@@ -235,8 +251,11 @@ async function loadFile(file){
   ui.clips.textContent=clips.length;ui.empty.style.display='none';
   if(clips.length){ui.clip.disabled=false;selectClip(0);disable(false);ui.state.textContent='Ready';setStatus('準備完了。カメラ位置を調整してGIFへ変換できます。',0,'ok')}
   else{ui.clip.innerHTML='<option>アニメーションなし</option>';ui.state.textContent='No animation';setStatus('モデルは読み込めましたが、アニメーションがありません。',0,'error')}
- }catch(e){console.error(e);disposeRoot();ui.empty.style.display='grid';ui.state.textContent='Load failed';setStatus('GLBの読み込みに失敗しました。圧縮形式またはファイル破損を確認してください。',0,'error')}
- finally{URL.revokeObjectURL(url)}
+ }catch(e){
+  console.error(e);
+  disposeRoot();ui.empty.style.display='grid';ui.state.textContent='Load failed';
+  setStatus('GLBの読み込みに失敗しました: '+(e?.message||'不明なエラー'),0,'error');
+ }
 }
 
 function disable(v){
@@ -292,8 +311,11 @@ async function exportGif(){
  const ctx=captureCanvas.getContext('2d',{willReadFrequently:true});
  const cam=camera.clone();cam.aspect=width/height;cam.updateProjectionMatrix();
  if(ui.transparent.checked)out.setClearColor(0x000000,0);else out.setClearColor(ui.bg.value,1);
- const gif=GIFEncoder();
+ let GIFEncoder,quantize,applyPalette;
  try{
+  setStatus('GIFエンコーダを準備中…',2);
+  ({GIFEncoder,quantize,applyPalette}=await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm'));
+  const gif=GIFEncoder();
   mixer.stopAllAction();const ea=mixer.clipAction(c);ea.reset();ea.setLoop(THREE.LoopOnce,1);ea.clampWhenFinished=true;ea.play();
   for(let i=0;i<frames;i++){
    const t=(i/frames)*c.duration;mixer.setTime(t);out.render(scene,cam);
