@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f9fc">
+<title>GLB2GIF — GLB to GIF Converter</title>
+<meta name="description" content="アニメーション付きGLBをブラウザ内だけでGIFへ変換します。ファイルは外部送信しません。">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f7f9fc;--panel:#fff;--line:#e3e8f0;--text:#172033;--muted:#69758a;
+  --accent:#2563eb;--accent2:#1d4ed8;--soft:#eff5ff;--good:#0f9f6e;--warn:#b7791f;
+  --shadow:0 14px 40px rgba(35,50,80,.08);--radius:20px;
+}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);
+font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic UI","Yu Gothic",system-ui,-apple-system,sans-serif}
+button,input,select{font:inherit}.shell{max-width:1320px;margin:auto;padding:22px}
+header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin:4px 0 18px}
+.brand h1{font-size:clamp(26px,4vw,40px);line-height:1.1;margin:0;letter-spacing:-.035em}
+.brand p{margin:9px 0 0;color:var(--muted);font-size:14px;line-height:1.7}
+.privacy{white-space:nowrap;display:inline-flex;align-items:center;gap:7px;padding:9px 12px;background:#edf9f5;
+border:1px solid #caeee2;color:#13795b;border-radius:999px;font-size:12px;font-weight:800}
+.grid{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.controls{padding:18px}.section+.section{border-top:1px solid var(--line);margin-top:17px;padding-top:17px}
+.section h2{font-size:13px;margin:0 0 11px;letter-spacing:.02em}.drop{display:block;border:2px dashed #c9d4e5;
+border-radius:16px;padding:23px 16px;text-align:center;background:#fbfcff;cursor:pointer;transition:.18s}
+.drop:hover,.drop.drag{border-color:var(--accent);background:var(--soft);transform:translateY(-1px)}
+.drop strong{display:block;font-size:14px}.drop span{display:block;color:var(--muted);font-size:12px;margin-top:6px;line-height:1.6}
+#file{display:none}.field{margin-bottom:11px}.field:last-child{margin-bottom:0}.field label{display:block;font-size:11px;
+font-weight:800;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.055em}
+input[type=number],select,input[type=color]{width:100%;height:42px;border:1px solid #ced7e5;border-radius:11px;background:#fff;
+padding:0 11px;color:var(--text);outline:none}input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.09)}
+input[type=color]{padding:5px}.two{display:grid;grid-template-columns:1fr 1fr;gap:9px}.toggle{display:flex;align-items:center;gap:9px;
+border:1px solid var(--line);padding:10px 11px;border-radius:11px;font-size:12px;color:var(--text)}
+.toggle input{accent-color:var(--accent)}.btn{width:100%;border:0;border-radius:12px;padding:12px 14px;background:var(--accent);
+color:white;font-weight:800;cursor:pointer;transition:.18s}.btn:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}.secondary{background:white;color:var(--text);border:1px solid #ced7e5}
+.secondary:hover:not(:disabled){background:#f7f9fc}.meta{display:grid;gap:7px}.meta div{display:flex;justify-content:space-between;gap:14px;
+font-size:12px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fbfcff;color:var(--muted)}
+.meta b{color:var(--text);font-weight:800;text-align:right;overflow-wrap:anywhere}.viewer-card{padding:15px}.viewer-top{display:flex;
+justify-content:space-between;align-items:center;gap:12px;margin:0 2px 12px}.viewer-top h2{font-size:14px;margin:0}
+.state{font-size:11px;color:var(--muted);padding:7px 10px;border:1px solid var(--line);border-radius:999px;background:#fbfcff}
+.viewer{position:relative;min-height:540px;height:min(68vh,760px);border-radius:16px;overflow:hidden;border:1px solid var(--line);
+background-color:#f3f5f9;background-image:linear-gradient(45deg,#e8ecf3 25%,transparent 25%),linear-gradient(-45deg,#e8ecf3 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e8ecf3 75%),linear-gradient(-45deg,transparent 75%,#e8ecf3 75%);
+background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0}
+#canvasHost{position:absolute;inset:0}.empty{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.empty>div{text-align:center;color:var(--muted);font-size:13px;line-height:1.8;background:rgba(255,255,255,.86);border:1px solid var(--line);
+padding:14px 18px;border-radius:14px;backdrop-filter:blur(8px)}.viewer-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.statusbox{margin-top:11px;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fbfcff}.statusline{display:flex;
+justify-content:space-between;gap:12px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:9px}
+progress{width:100%;height:10px;border:0;border-radius:999px;overflow:hidden;background:#e7ecf4}progress::-webkit-progress-bar{background:#e7ecf4}
+progress::-webkit-progress-value{background:var(--accent);border-radius:999px}progress::-moz-progress-bar{background:var(--accent)}
+.download{display:none;margin-top:10px;text-decoration:none;text-align:center;border-radius:12px;padding:12px 14px;background:var(--good);
+color:#fff;font-size:13px;font-weight:800}.note{font-size:11px;color:var(--muted);line-height:1.7;margin-top:10px}
+.error{color:#b42318}.ok{color:#0f7b59}
+@media(max-width:920px){header{display:block}.privacy{margin-top:12px}.grid{grid-template-columns:1fr}.viewer{min-height:390px;height:56vh}}
+@media(max-width:560px){.shell{padding:12px}.controls,.viewer-card{padding:12px}.viewer{min-height:330px;height:50vh}.two{grid-template-columns:1fr 1fr}
+.viewer-actions{grid-template-columns:1fr}.brand p br{display:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header>
+  <div class="brand"><h1>GLB2GIF</h1><p>アニメーション付きGLBを、ブラウザだけでGIFへ変換。<br>モデルを確認しながらカメラ位置・FPS・出力サイズを調整できます。</p></div>
+  <div class="privacy">● ローカル処理・外部送信なし</div>
+</header>
+<div class="grid">
+<aside class="card controls">
+  <section class="section">
+    <h2>1. GLBを読み込む</h2>
+    <label class="drop" id="drop" for="file"><strong>GLBを選択 / ドロップ</strong><span>.glb / アニメーション付きモデル</span></label>
+    <input id="file" type="file" accept=".glb,model/gltf-binary">
+  </section>
+  <section class="section">
+    <h2>2. 出力設定</h2>
+    <div class="field"><label for="clip">Animation</label><select id="clip" disabled><option>GLB読込後に選択</option></select></div>
+    <div class="two">
+      <div class="field"><label for="w">Width</label><input id="w" type="number" min="64" max="1600" step="1" value="512"></div>
+      <div class="field"><label for="h">Height</label><input id="h" type="number" min="64" max="1600" step="1" value="512"></div>
+    </div>
+    <div class="two">
+      <div class="field"><label for="fps">FPS</label><input id="fps" type="number" min="1" max="30" step="1" value="15"></div>
+      <div class="field"><label for="bg">Background</label><input id="bg" type="color" value="#ffffff"></div>
+    </div>
+    <div class="two">
+      <label class="toggle"><input id="transparent" type="checkbox"> 透明背景</label>
+      <label class="toggle"><input id="loop" type="checkbox" checked> ループ</label>
+    </div>
+  </section>
+  <section class="section">
+    <h2>3. モデル情報</h2>
+    <div class="meta">
+      <div><span>ファイル</span><b id="mName">未読込</b></div>
+      <div><span>Animations</span><b id="mClips">-</b></div>
+      <div><span>Duration</span><b id="mDur">-</b></div>
+      <div><span>Frames</span><b id="mFrames">-</b></div>
+    </div>
+  </section>
+  <section class="section">
+    <button class="btn" id="export" disabled>GIFに変換</button>
+    <div class="note">推奨: 512×512 / 15FPS。GIFは256色のため、写真調のテクスチャや滑らかな陰影では色数が減ります。</div>
+  </section>
+</aside>
+
+<main class="card viewer-card">
+  <div class="viewer-top"><h2>3D Preview</h2><span class="state" id="state">No model</span></div>
+  <div class="viewer">
+    <div id="canvasHost"></div>
+    <div class="empty" id="empty"><div>ここに3Dモデルが表示されます<br>ドラッグ: 回転 / ホイール・ピンチ: ズーム</div></div>
+  </div>
+  <div class="viewer-actions">
+    <button class="btn secondary" id="fit" disabled>画面に合わせる</button>
+    <button class="btn secondary" id="play" disabled>一時停止</button>
+    <button class="btn secondary" id="front" disabled>正面に戻す</button>
+  </div>
+  <div class="statusbox">
+    <div class="statusline"><span id="status">GLBを読み込んでください。</span><b id="pct">0%</b></div>
+    <progress id="progress" max="100" value="0"></progress>
+    <a id="download" class="download" download="animation.gif">GIFをダウンロード</a>
+  </div>
+</main>
+</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { GIFEncoder, quantize, applyPalette } from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm';
+
+const $=id=>document.getElementById(id);
+const ui={file:$('file'),drop:$('drop'),clip:$('clip'),w:$('w'),h:$('h'),fps:$('fps'),bg:$('bg'),
+ transparent:$('transparent'),loop:$('loop'),exp:$('export'),fit:$('fit'),play:$('play'),front:$('front'),
+ name:$('mName'),clips:$('mClips'),dur:$('mDur'),frames:$('mFrames'),state:$('state'),status:$('status'),
+ pct:$('pct'),progress:$('progress'),download:$('download'),empty:$('empty'),host:$('canvasHost')};
+
+let scene,camera,renderer,controls,clock,root=null,mixer=null,clips=[],action=null,currentFile='',playing=true,exporting=false,lastURL=null;
+let modelCenter=new THREE.Vector3(),modelSize=new THREE.Vector3(1,1,1);
+
+init();
+requestAnimationFrame(tick);
+
+function init(){
+ scene=new THREE.Scene();
+ camera=new THREE.PerspectiveCamera(35,1,.01,5000);
+ renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
+ renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+ renderer.outputColorSpace=THREE.SRGBColorSpace;
+ renderer.setClearColor(ui.bg.value,1);
+ ui.host.appendChild(renderer.domElement);
+ controls=new OrbitControls(camera,renderer.domElement);
+ controls.enableDamping=true; controls.dampingFactor=.08;
+ scene.add(new THREE.HemisphereLight(0xffffff,0xc7d1e4,2.1));
+ const key=new THREE.DirectionalLight(0xffffff,2.25);key.position.set(4,7,6);scene.add(key);
+ const fill=new THREE.DirectionalLight(0xffffff,1.0);fill.position.set(-4,2,-5);scene.add(fill);
+ clock=new THREE.Clock();
+ resize(); addEventListener('resize',resize);
+}
+
+function resize(){
+ const r=ui.host.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);
+ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+
+function tick(){
+ requestAnimationFrame(tick);
+ if(!exporting){
+  const dt=Math.min(clock.getDelta(),.05);
+  if(mixer&&playing)mixer.update(dt);
+  controls.update();
+  applyPreviewBackground();
+  renderer.render(scene,camera);
+ }
+}
+
+function applyPreviewBackground(){
+ if(ui.transparent.checked)renderer.setClearColor(0x000000,0);
+ else renderer.setClearColor(ui.bg.value,1);
+}
+
+function setStatus(text,p=0,kind=''){
+ ui.status.textContent=text;ui.status.className=kind;ui.progress.value=p;ui.pct.textContent=Math.round(p)+'%';
+}
+
+function resetDownload(){
+ if(lastURL){URL.revokeObjectURL(lastURL);lastURL=null}
+ ui.download.style.display='none';ui.download.removeAttribute('href');
+}
+
+function disposeRoot(){
+ if(!root)return;
+ scene.remove(root);
+ root.traverse(o=>{
+  o.geometry?.dispose?.();
+  const mats=Array.isArray(o.material)?o.material:(o.material?[o.material]:[]);
+  mats.forEach(m=>{
+   for(const k in m){const v=m[k];if(v&&v.isTexture)v.dispose?.()}
+   m.dispose?.();
+  });
+ });
+ root=null;mixer=null;clips=[];action=null;
+}
+
+function loader(){
+ const l=new GLTFLoader();
+ const d=new DRACOLoader();
+ d.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/libs/draco/');
+ l.setDRACOLoader(d);l.setMeshoptDecoder(MeshoptDecoder);
+ return l;
+}
+
+async function loadFile(file){
+ if(!file||!file.name.toLowerCase().endsWith('.glb')){setStatus('GLBファイルを選択してください。',0,'error');return}
+ resetDownload();disposeRoot();disable(true);currentFile=file.name;ui.name.textContent=file.name;ui.state.textContent='Loading…';
+ setStatus('GLBを読み込み中…',8);
+ const url=URL.createObjectURL(file);
+ try{
+  const gltf=await loader().loadAsync(url);
+  root=gltf.scene;scene.add(root);clips=gltf.animations||[];
+  updateBounds();fitCamera();mixer=clips.length?new THREE.AnimationMixer(root):null;
+  ui.clip.innerHTML='';
+  clips.forEach((c,i)=>{const o=document.createElement('option');o.value=i;o.textContent=(c.name||('Animation '+(i+1)))+' · '+c.duration.toFixed(2)+'s';ui.clip.appendChild(o)});
+  ui.clips.textContent=clips.length;ui.empty.style.display='none';
+  if(clips.length){ui.clip.disabled=false;selectClip(0);disable(false);ui.state.textContent='Ready';setStatus('準備完了。カメラ位置を調整してGIFへ変換できます。',0,'ok')}
+  else{ui.clip.innerHTML='<option>アニメーションなし</option>';ui.state.textContent='No animation';setStatus('モデルは読み込めましたが、アニメーションがありません。',0,'error')}
+ }catch(e){console.error(e);disposeRoot();ui.empty.style.display='grid';ui.state.textContent='Load failed';setStatus('GLBの読み込みに失敗しました。圧縮形式またはファイル破損を確認してください。',0,'error')}
+ finally{URL.revokeObjectURL(url)}
+}
+
+function disable(v){
+ ui.exp.disabled=v||!clips.length;ui.fit.disabled=v||!root;ui.play.disabled=v||!clips.length;ui.front.disabled=v||!root;
+ if(v)ui.clip.disabled=true;
+}
+
+function updateBounds(){
+ const box=new THREE.Box3().setFromObject(root);
+ box.getCenter(modelCenter);box.getSize(modelSize);
+ if(!Number.isFinite(modelSize.x)||modelSize.length()===0){modelCenter.set(0,0,0);modelSize.set(1,1,1)}
+}
+
+function fitCamera(frontOnly=false){
+ if(!root)return;updateBounds();
+ const max=Math.max(modelSize.x,modelSize.y,modelSize.z,0.01);
+ const fov=THREE.MathUtils.degToRad(camera.fov);
+ let dist=(max/(2*Math.tan(fov/2)))*1.45;
+ const center=modelCenter.clone();
+ if(frontOnly)camera.position.set(center.x,center.y+modelSize.y*.04,center.z+dist);
+ else camera.position.set(center.x+dist*.72,center.y+dist*.24,center.z+dist);
+ camera.near=Math.max(.001,dist/1000);camera.far=Math.max(100,dist*100);camera.updateProjectionMatrix();
+ controls.target.copy(center);controls.update();
+}
+
+function selectClip(index){
+ if(!mixer||!clips[index])return;
+ mixer.stopAllAction();action=mixer.clipAction(clips[index]);action.reset();action.setLoop(THREE.LoopRepeat,Infinity);action.play();
+ ui.dur.textContent=clips[index].duration.toFixed(2)+' s';updateFrames();
+}
+
+function updateFrames(){
+ const c=clips[Number(ui.clip.value)||0];if(!c){ui.frames.textContent='-';return}
+ const fps=clampInt(ui.fps.value,1,30,15);ui.frames.textContent=Math.max(1,Math.ceil(c.duration*fps))+' frames';
+}
+
+function clampInt(v,min,max,def){const n=parseInt(v,10);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):def}
+const yieldUI=()=>new Promise(r=>setTimeout(r,0));
+
+async function exportGif(){
+ if(!mixer||!clips.length||exporting)return;
+ exporting=true;playing=false;disable(true);resetDownload();
+ const width=clampInt(ui.w.value,64,1600,512),height=clampInt(ui.h.value,64,1600,512),fps=clampInt(ui.fps.value,1,30,15);
+ ui.w.value=width;ui.h.value=height;ui.fps.value=fps;
+ const clipIndex=Number(ui.clip.value)||0,c=clips[clipIndex],frames=Math.max(1,Math.ceil(c.duration*fps)),delay=Math.max(20,Math.round(1000/fps));
+ ui.frames.textContent=frames+' frames';
+ const maxPixels=width*height*frames;
+ if(maxPixels>260000000&&!confirm('高負荷な設定です。変換を続けますか？')){finishExport(clipIndex);return}
+ const outCanvas=document.createElement('canvas');outCanvas.width=width;outCanvas.height=height;
+ const out=new THREE.WebGLRenderer({canvas:outCanvas,antialias:true,alpha:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+ out.setSize(width,height,false);out.setPixelRatio(1);out.outputColorSpace=THREE.SRGBColorSpace;
+ const cam=camera.clone();cam.aspect=width/height;cam.updateProjectionMatrix();
+ if(ui.transparent.checked)out.setClearColor(0x000000,0);else out.setClearColor(ui.bg.value,1);
+ const ctx=outCanvas.getContext('2d',{willReadFrequently:true});
+ const gif=GIFEncoder();
+ try{
+  mixer.stopAllAction();const ea=mixer.clipAction(c);ea.reset();ea.setLoop(THREE.LoopOnce,1);ea.clampWhenFinished=true;ea.play();
+  for(let i=0;i<frames;i++){
+   const t=(i/frames)*c.duration;mixer.setTime(t);out.render(scene,cam);
+   const rgba=ctx.getImageData(0,0,width,height).data;
+   let palette,index,opts={delay};
+   if(ui.transparent.checked){
+    palette=quantize(rgba,256,{format:'rgba4444',oneBitAlpha:127,clearAlpha:true});
+    index=applyPalette(rgba,palette,'rgba4444');
+    let ti=palette.findIndex(p=>p.length>3&&p[3]===0);
+    if(ti<0)ti=0;
+    opts={...opts,transparent:true,transparentIndex:ti,dispose:2};
+   }else{
+    palette=quantize(rgba,256,{format:'rgb565'});
+    index=applyPalette(rgba,palette,'rgb565');
+   }
+   opts.palette=palette;if(i===0)opts.repeat=ui.loop.checked?0:-1;
+   gif.writeFrame(index,width,height,opts);
+   const p=((i+1)/frames)*92;setStatus('GIFを生成中… '+(i+1)+' / '+frames,p);
+   if(i%2===0)await yieldUI();
+  }
+  gif.finish();const bytes=gif.bytes();const blob=new Blob([bytes],{type:'image/gif'});lastURL=URL.createObjectURL(blob);
+  ui.download.href=lastURL;ui.download.download=currentFile.replace(/\.glb$/i,'')+'.gif';ui.download.style.display='block';
+  setStatus('変換完了 · '+(blob.size/1024/1024).toFixed(1)+' MB',100,'ok');
+ }catch(e){console.error(e);setStatus('GIF生成に失敗しました。まず512×512 / 15FPSで再試行してください。',0,'error')}
+ finally{out.dispose();finishExport(clipIndex)}
+}
+
+function finishExport(clipIndex){
+ exporting=false;playing=true;if(mixer&&clips[clipIndex])selectClip(clipIndex);disable(false);ui.clip.disabled=!clips.length;ui.play.textContent='一時停止';
+}
+
+ui.file.addEventListener('change',()=>loadFile(ui.file.files[0]));
+['dragenter','dragover'].forEach(ev=>ui.drop.addEventListener(ev,e=>{e.preventDefault();ui.drop.classList.add('drag')}));
+['dragleave','drop'].forEach(ev=>ui.drop.addEventListener(ev,e=>{e.preventDefault();ui.drop.classList.remove('drag')}));
+ui.drop.addEventListener('drop',e=>{const f=e.dataTransfer?.files?.[0];if(f)loadFile(f)});
+ui.clip.addEventListener('change',()=>selectClip(Number(ui.clip.value)||0));ui.fps.addEventListener('input',updateFrames);
+ui.bg.addEventListener('input',applyPreviewBackground);ui.transparent.addEventListener('change',applyPreviewBackground);
+ui.fit.addEventListener('click',()=>fitCamera(false));ui.front.addEventListener('click',()=>fitCamera(true));
+ui.play.addEventListener('click',()=>{playing=!playing;ui.play.textContent=playing?'一時停止':'再生'});
+ui.exp.addEventListener('click',exportGif);
+</script>
+</body>
+</html>
