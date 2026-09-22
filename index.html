@@ -288,22 +288,23 @@ async function exportGif(){
  const outCanvas=document.createElement('canvas');outCanvas.width=width;outCanvas.height=height;
  const out=new THREE.WebGLRenderer({canvas:outCanvas,antialias:true,alpha:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
  out.setSize(width,height,false);out.setPixelRatio(1);out.outputColorSpace=THREE.SRGBColorSpace;
+ const captureCanvas=document.createElement('canvas');captureCanvas.width=width;captureCanvas.height=height;
+ const ctx=captureCanvas.getContext('2d',{willReadFrequently:true});
  const cam=camera.clone();cam.aspect=width/height;cam.updateProjectionMatrix();
  if(ui.transparent.checked)out.setClearColor(0x000000,0);else out.setClearColor(ui.bg.value,1);
- const ctx=outCanvas.getContext('2d',{willReadFrequently:true});
  const gif=GIFEncoder();
  try{
   mixer.stopAllAction();const ea=mixer.clipAction(c);ea.reset();ea.setLoop(THREE.LoopOnce,1);ea.clampWhenFinished=true;ea.play();
   for(let i=0;i<frames;i++){
    const t=(i/frames)*c.duration;mixer.setTime(t);out.render(scene,cam);
+   ctx.clearRect(0,0,width,height);ctx.drawImage(outCanvas,0,0,width,height);
    const rgba=ctx.getImageData(0,0,width,height).data;
    let palette,index,opts={delay};
    if(ui.transparent.checked){
     palette=quantize(rgba,256,{format:'rgba4444',oneBitAlpha:127,clearAlpha:true});
     index=applyPalette(rgba,palette,'rgba4444');
-    let ti=palette.findIndex(p=>p.length>3&&p[3]===0);
-    if(ti<0)ti=0;
-    opts={...opts,transparent:true,transparentIndex:ti,dispose:2};
+    const ti=palette.findIndex(p=>p.length>3&&p[3]===0);
+    if(ti>=0)opts={...opts,transparent:true,transparentIndex:ti,dispose:2};
    }else{
     palette=quantize(rgba,256,{format:'rgb565'});
     index=applyPalette(rgba,palette,'rgb565');
